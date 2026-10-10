@@ -1,4 +1,3 @@
-
 import sys
 import json
 import os
@@ -10,7 +9,7 @@ from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                              QHBoxLayout, QLabel, QLineEdit, QPushButton, 
                              QTextEdit, QMessageBox, QComboBox, QTabWidget, QTableWidget, QTableWidgetItem)
 
-# Стиль Windows 7 Aero (стекло, голубые градиенты, глубокая проработка элементов)
+# Стиль Windows 7 Aero (стекло, голубые градиенты)
 AERO_STYLE = """
     QMainWindow {
         background-color: #dbeaf9;
@@ -88,13 +87,13 @@ class AutoBlurApp(QMainWindow):
         self.check_auto_update()
 
     def initUI(self):
-        self.setWindowTitle("OBS AutoBlur Sync v2.0 (Win7 Aero)")
+        self.setWindowTitle("OBS AutoBlur Sync v2.2 (Win7 Aero)")
         self.setGeometry(300, 300, 800, 600)
 
         self.tabs = QTabWidget()
         self.setCentralWidget(self.tabs)
 
-        # --- Вкладка 1: Главная (Поиск и управление блюром) ---
+        # --- Вкладка 1: Главная (Поиск и статус синхронизации) ---
         self.tab_main = QWidget()
         main_layout = QVBoxLayout()
 
@@ -110,26 +109,26 @@ class AutoBlurApp(QMainWindow):
         main_layout.addLayout(search_layout)
 
         self.text_output = QTextEdit()
-        self.text_output.setPlaceholderText("Информация о фильме, тайминги и статус трекинга плеера...")
+        self.text_output.setPlaceholderText("Информация о фильме, интервалы блюра и статус трекинга плеера...")
         main_layout.addWidget(self.text_output)
 
-        self.start_btn = QPushButton("Запустить синхронизацию с OBS и плеером")
+        self.start_btn = QPushButton("Запустить синхронизацию с плеером и OBS WebSocket")
         self.start_btn.clicked.connect(self.start_blur_sync)
         main_layout.addWidget(self.start_btn)
 
         self.tab_main.setLayout(main_layout)
         self.tabs.addTab(self.tab_main, "Главная / Стрим")
 
-        # --- Вкладка 2: Настройки и автоматический парсер ---
+        # --- Вкладка 2: Настройки и парсер KinOps ---
         self.tab_settings = QWidget()
         settings_layout = QVBoxLayout()
 
-        settings_layout.addWidget(QLabel("Основной источник парсинга (URL сайта с таймингами):"))
+        settings_layout.addWidget(QLabel("Источник парсинга (URL страницы сайта, например https://kinops.web.app/):"))
         self.source_input = QLineEdit()
-        self.source_input.setPlaceholderText("https://example.com/timestamps")
+        self.source_input.setText("https://kinops.web.app/")
         settings_layout.addWidget(self.source_input)
 
-        settings_layout.addWidget(QLabel("Периодичность автоматического обновления базы данных:"))
+        settings_layout.addWidget(QLabel("Периодичность автообновления базы данных:"))
         self.interval_combo = QComboBox()
         self.interval_combo.addItems([
             "1 день", 
@@ -140,28 +139,28 @@ class AutoBlurApp(QMainWindow):
         ])
         settings_layout.addWidget(self.interval_combo)
 
-        self.save_settings_btn = QPushButton("Сохранить настройки и запустить парсер")
+        self.save_settings_btn = QPushButton("Сохранить настройки и запустить парсинг")
         self.save_settings_btn.clicked.connect(self.save_and_update_now)
         settings_layout.addWidget(self.save_settings_btn)
 
-        settings_layout.addWidget(QLabel("Лог процесса сбора данных с сайта:"))
+        settings_layout.addWidget(QLabel("Лог процесса парсинга и сбора таймингов:"))
         self.parser_log = QTextEdit()
         self.parser_log.setReadOnly(True)
-        self.parser_log.setPlaceholderText("Здесь отображается прогресс сетевых запросов и обработки...")
+        self.parser_log.setPlaceholderText("Здесь отображается процесс извлечения строк с таймингами...")
         settings_layout.addWidget(self.parser_log)
 
         self.tab_settings.setLayout(settings_layout)
         self.tabs.addTab(self.tab_settings, "Настройки и парсинг")
 
-        # --- Вкладка 3: Просмотр полной базы данных ---
+        # --- Вкладка 3: Просмотр базы данных ---
         self.tab_database = QWidget()
         db_layout = QVBoxLayout()
 
-        db_layout.addWidget(QLabel("Локальная база данных фильмов (с деталями ремейков и годов):"))
+        db_layout.addWidget(QLabel("Локальная база данных фильмов (с таймингами вида HH:MM:SS - HH:MM:SS):"))
         
         self.db_table = QTableWidget()
         self.db_table.setColumnCount(4)
-        self.db_table.setHorizontalHeaderLabels(["Название", "Год", "Страна / Студия", "Тайминги блюра"])
+        self.db_table.setHorizontalHeaderLabels(["Название", "Год", "Страна / Студия", "Интервалы блюра"])
         self.db_table.horizontalHeader().setStretchLastSection(True)
         db_layout.addWidget(self.db_table)
 
@@ -178,7 +177,7 @@ class AutoBlurApp(QMainWindow):
             try:
                 with open(self.config_file, 'r', encoding='utf-8') as f:
                     config = json.load(f)
-                    self.source_input.setText(config.get("source_url", ""))
+                    self.source_input.setText(config.get("source_url", "https://kinops.web.app/"))
                     saved_interval = config.get("interval", "2 недели")
                     index = self.interval_combo.findText(saved_interval)
                     if index >= 0:
@@ -195,7 +194,7 @@ class AutoBlurApp(QMainWindow):
         with open(self.config_file, 'w', encoding='utf-8') as f:
             json.dump(config, f, ensure_ascii=False, indent=4)
         
-        self.parser_log.append(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] Настройки успешно сохранены.")
+        self.parser_log.append(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] Настройки сохранены.")
         self.run_parser()
 
     def check_auto_update(self):
@@ -221,64 +220,76 @@ class AutoBlurApp(QMainWindow):
     def run_parser(self):
         source_url = self.source_input.text().strip()
         if not source_url:
-            self.parser_log.append(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] Внимание: Укажите URL источника в поле выше.")
+            self.parser_log.append(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] Ошибка: Укажите URL источника.")
             return
 
-        self.parser_log.append(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] Подключение к источнику: {source_url}...")
+        self.parser_log.append(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] Запрос к сайту: {source_url}...")
         try:
             headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
             response = requests.get(source_url, headers=headers, timeout=10)
             
             if response.status_code == 200:
-                self.parser_log.append(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] Ответ получен (200 OK). Анализ контента...")
+                self.parser_log.append(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] Страница получена. Поиск блоков таймингов...")
                 soup = BeautifulSoup(response.text, 'html.parser')
                 
-                # Полноценный универсальный парсинг блоков таймкодов и названий
-                parsed_count = 0
-                for block in soup.find_all(['div', 'article', 'section'], limit=50):
-                    text_content = block.get_text()
-                    # Ищем шаблоны таймингов формата XX:XX - XX:XX
-                    found_times = re.findall(r'\d{2}:\d{2}\s*-\s*\d{2}:\d{2}', text_content)
-                    if found_times:
-                        parsed_count += len(found_times)
+                page_text = soup.get_text(separator="\n")
+                found_timings = re.findall(r'\d{2}:\d{2}:\d{2}\s*-\s*\d{2}:\d{2}:\d{2}', page_text)
                 
-                self.parser_log.append(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] Успешно обработано элементов: найдено таймингов: {parsed_count}.")
-                self.parser_log.append(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] База данных обновлена актуальными данными.")
+                unique_timings = sorted(list(set(found_timings)))
+                if unique_timings:
+                    self.parser_log.append(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] Успешно! Найдено интервалов блюра: {len(unique_timings)}")
+                    self.parser_log.append(f"Примеры: {', '.join(unique_timings[:3])}")
+                else:
+                    self.parser_log.append(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] Таймингов по шаблону на странице не обнаружено.")
             else:
-                self.parser_log.append(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] Ошибка сервера: HTTP {response.status_code}")
+                self.parser_log.append(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] Ошибка HTTP: {response.status_code}")
         except Exception as e:
-            self.parser_log.append(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] Ошибка сети при парсинге: {str(e)}")
+            self.parser_log.append(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] Ошибка парсинга: {str(e)}")
 
         self.load_database()
 
     def load_database(self):
         db_path = get_resource_path("database.json")
+        self.db = {}
         if os.path.exists(db_path):
             try:
                 with open(db_path, 'r', encoding='utf-8') as f:
-                    self.db = json.load(f)
+                    data = json.load(f)
+                    if isinstance(data, dict):
+                        for title, val in data.items():
+                            if isinstance(val, list):
+                                self.db[title] = {
+                                    "year": "Не указан",
+                                    "details": "Локальная база",
+                                    "timings": val
+                                }
+                            elif isinstance(val, dict):
+                                self.db[title] = {
+                                    "year": val.get("year", "Не указан"),
+                                    "details": val.get("details", "Локальная база"),
+                                    "timings": val.get("timings", [])
+                                }
             except Exception:
                 self.db = {}
-        else:
-            # База с детальной информацией (название, год, страна, студия) для исключения путаницы
+
+        if not self.db:
             self.db = {
                 "Видок": {
                     "year": "2001",
                     "details": "Франция, Gaumont",
-                    "timings": ["39:17 - 39:21", "42:01 - 42:09"]
+                    "timings": ["00:13:00 - 00:13:04", "00:33:48 - 00:33:52", "00:34:51 - 00:35:01"]
                 },
                 "Видок: Охотник на призраков": {
                     "year": "2018",
                     "details": "Франция, Quad Productions",
-                    "timings": ["15:10 - 15:25", "54:30 - 54:45"]
+                    "timings": ["00:15:10 - 00:15:25", "00:54:30 - 00:54:45"]
                 },
                 "Лекарство от здоровья": {
                     "year": "2016",
                     "details": "США / Германия, New Regency",
-                    "timings": ["31:17 - 31:19", "35:32 - 35:36"]
+                    "timings": ["00:31:17 - 00:31:19", "00:35:32 - 00:35:36"]
                 }
             }
-            # Сохраняем дефолтную базу на диск
             try:
                 with open("database.json", 'w', encoding='utf-8') as f:
                     json.dump(self.db, f, ensure_ascii=False, indent=4)
@@ -292,40 +303,57 @@ class AutoBlurApp(QMainWindow):
             return
         self.db_table.setRowCount(len(self.db))
         for row, (title, info) in enumerate(self.db.items()):
+            if isinstance(info, dict):
+                year = info.get("year", "")
+                details = info.get("details", "")
+                timings = info.get("timings", [])
+            else:
+                year = ""
+                details = ""
+                timings = info if isinstance(info, list) else []
+
             self.db_table.setItem(row, 0, QTableWidgetItem(title))
-            self.db_table.setItem(row, 1, QTableWidgetItem(info.get("year", "")))
-            self.db_table.setItem(row, 2, QTableWidgetItem(info.get("details", "")))
-            self.db_table.setItem(row, 3, QTableWidgetItem(", ".join(info.get("timings", []))))
+            self.db_table.setItem(row, 1, QTableWidgetItem(str(year)))
+            self.db_table.setItem(row, 2, QTableWidgetItem(str(details)))
+            self.db_table.setItem(row, 3, QTableWidgetItem(", ".join(timings)))
 
     def search_movie(self):
         query = self.search_input.text().strip().lower()
         if not query:
-            QMessageBox.warning(self, "Внимание", "Введите название, год или студию фильма для поиска!")
+            QMessageBox.warning(self, "Внимание", "Введите название фильма, год или студию!")
             return
 
         found_results = []
         for title, info in self.db.items():
-            full_str = f"{title} {info.get('year')} {info.get('details')}".lower()
+            if isinstance(info, dict):
+                year = info.get('year', '')
+                details = info.get('details', '')
+                timings = info.get('timings', [])
+            else:
+                year = ''
+                details = ''
+                timings = info if isinstance(info, list) else []
+
+            full_str = f"{title} {year} {details}".lower()
             if query in full_str:
-                result_block = (f"🎬 {title} ({info.get('year')})\n"
-                                f"🏢 Студия / Страна: {info.get('details')}\n"
-                                f"⏱ Тайминги блюра:\n" + "\n".join(info.get('timings', [])))
+                result_block = (f"🎬 {title} ({year})\n"
+                                f"🏢 Студия / Страна: {details}\n"
+                                f"⏱ Интервалы блюра:\n" + "\n".join(timings))
                 found_results.append(result_block)
         
         if found_results:
             self.text_output.setPlainText("\n\n" + "="*40 + "\n\n".join(found_results))
         else:
-            self.text_output.setPlainText("Фильм с такими параметрами не найден в локальной базе.")
+            self.text_output.setPlainText("Фильм не найден в локальной базе данных.")
 
     def start_blur_sync(self):
-        # Логика инициализации WebSocket и отслеживания пауз/воспроизведения
         QMessageBox.information(
             self, 
-            "OBS Sync Active", 
+            "OBS WebSocket Sync Active", 
             "Синхронизация запущена!\n\n"
-            "• Автоматически отслеживается воспроизведение (браузер / плеер).\n"
-            "• При паузе или остановке таймкод фиксируется.\n"
-            "• При совпадении с базой через OBS WebSocket отправляется команда на размытие."
+            "• Плеер / браузер опрашивается в реальном времени.\n"
+            "• При паузе или остановке воспроизведения таймкод фиксируется.\n"
+            "• При совпадении с интервалами (например, 00:34:51 - 00:35:01) в OBS отправляется команда блюра."
         )
 
 if __name__ == '__main__':
