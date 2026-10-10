@@ -1,0 +1,4 @@
+obs-websocket-py>=1.0.0
+requests>=2.31.0
+PyQt5>=5.15.0
+beautifulsoup4>=4.12.0
